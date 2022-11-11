@@ -110,16 +110,16 @@ make cleanall
 mkdir -p build
 cd build
 
-# Get person_detect model
-model_url='https://github.com/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/models/person_detect.tflite'
-curl --retry 64 -sSL ${model_url} -o ./person_detect.tflite
+# Get kws model
+model_url='https://github.com/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/models/keyword_scrambled_8bit.tflite'
+curl --retry 64 -sSL ${model_url} -o ./keyword_scrambled_8bit.tflite
 
 # Compile model for Arm(R) Cortex(R)-M55 CPU and CMSIS-NN
 # An alternative to using "python3 -m tvm.driver.tvmc" is to call
 # "tvmc" directly once TVM has been pip installed.
 python3 -m tvm.driver.tvmc compile --target=cmsis-nn,c \
-    --target-cmsis-nn-mcpu=cortex-m55 \
-    --target-c-mcpu=cortex-m55 \
+    --target-cmsis-nn-mcpu=cortex-m33 \
+    --target-c-mcpu=cortex-m33 \
     --runtime=crt \
     --executor=aot \
     --executor-aot-interface-api=c \
@@ -127,26 +127,7 @@ python3 -m tvm.driver.tvmc compile --target=cmsis-nn,c \
     --pass-config tir.usmp.enable=1 \
     --pass-config tir.usmp.algorithm=hill_climb \
     --pass-config tir.disable_storage_rewrite=1 \
-    --pass-config tir.disable_vectorize=1 ./person_detect.tflite \
+    --pass-config tir.disable_vectorize=1 ./keyword_scrambled_8bit.tflite \
     --output-format=mlf \
-    --module-name=detection
+    --module-name=kws
 tar -xf module.tar
-
-# Get input image
-curl -sS https://raw.githubusercontent.com/tensorflow/tflite-micro/main/tensorflow/lite/micro/examples/person_detection/testdata/person.bmp -o input_image.bmp
-# curl -sS https://raw.githubusercontent.com/tensorflow/tflite-micro/main/tensorflow/lite/micro/examples/person_detection/testdata/no_person.bmp -o input_image.bmp
-
-# Create C header files
-cd ..
-python3 ./convert_image.py ./build/input_image.bmp
-
-# Build demo executable
-cd ${script_dir}
-make
-
-# Run demo executable on the FVP
-FVP_Corstone_SSE-300_Ethos-U55 -C cpu0.CFGDTCMSZ=15 \
--C cpu0.CFGITCMSZ=15 -C mps3_board.uart0.out_file=\"-\" -C mps3_board.uart0.shutdown_tag=\"EXITTHESIM\" \
--C mps3_board.visualisation.disable-visualisation=1 -C mps3_board.telnetterminal0.start_telnet=0 \
--C mps3_board.telnetterminal1.start_telnet=0 -C mps3_board.telnetterminal2.start_telnet=0 -C mps3_board.telnetterminal5.start_telnet=0 \
-./build/demo
